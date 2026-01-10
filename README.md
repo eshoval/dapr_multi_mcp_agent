@@ -84,21 +84,36 @@ MCP_SERVER_URL=http://localhost:8000/sse
 CB_BUCKET_NAME=travel-sample
 ```
 
-### 5. Configure Azure OpenAI Component
+### 5. Configure Secrets
 
-Copy the component template and add your credentials:
+Copy the secrets template and add your API key:
 
 ```bash
-cp components/azure-openai.yaml.example components/azure-openai.yaml
+cp secrets.json.example secrets.json
 ```
 
-Edit `components/azure-openai.yaml` with your Azure OpenAI credentials.
+Edit `secrets.json` with your Azure OpenAI API key:
 
-### 6. Start the Couchbase MCP Server
+```json
+{
+  "azure-openai-key": "YOUR_AZURE_OPENAI_API_KEY"
+}
+```
+
+### 6. Configure Azure OpenAI Component
+
+Update the Azure OpenAI endpoint in `components/azure-openai.yaml`:
+
+```yaml
+- name: endpoint
+  value: "https://YOUR_RESOURCE_NAME.openai.azure.com/"
+```
+
+### 7. Start the Couchbase MCP Server
 
 Ensure your Couchbase MCP server is running on the configured URL.
 
-### 7. Run the Application
+### 8. Run the Application
 
 ```bash
 dapr run -f dapr.yaml
@@ -113,9 +128,11 @@ minimal-dapr-cb-mcp-agent/
 ├── app.py                 # Main application entry point
 ├── dapr.yaml              # Dapr multi-app run configuration
 ├── requirements.txt       # Python dependencies
+├── secrets.json           # API keys (create from secrets.json.example)
 ├── .env                   # Environment variables (create from .env.example)
 ├── components/            # Dapr components
-│   └── azure-openai.yaml  # LLM component configuration
+│   ├── azure-openai.yaml  # LLM component configuration
+│   └── secretstore.yaml   # Local secret store component
 └── prompts/
     └── system_prompt.txt  # Agent system prompt
 ```

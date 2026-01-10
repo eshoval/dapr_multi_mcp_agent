@@ -12,7 +12,7 @@ spec:
       name: azure-openai-key
       key: azure-openai-key
   - name: endpoint
-    value: "https://YOUR_RESOURCE_NAME.openai.azure.com/"    
+    value: "https://oai-dapr-demo-rsc.openai.azure.com/"    
   - name: apiType
     value: "azure"    
   - name: deploymentName

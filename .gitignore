@@ -51,6 +51,5 @@ Thumbs.db
 *.log
 logs/
 
-# Dapr component secrets (use .example files instead)
-components/azure-openai.yaml
-components/openai.yaml
+# Secrets file (use secrets.json.example as template)
+secrets.json
