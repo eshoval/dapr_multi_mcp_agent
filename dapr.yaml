@@ -1,0 +1,7 @@
+version: 1
+apps:
+  - appDirPath: .
+    appID: cb-agent
+    appPort: 8001
+    command: ["chainlit", "run", "app.py", "-w", "--port", "8001"]
+    resourcesPath: ./components
