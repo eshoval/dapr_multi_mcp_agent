@@ -1,0 +1,104 @@
+[project]
+# List of environment variables to be provided by each user to use the app.
+user_env = []
+
+# Duration (in seconds) during which the session is saved when the connection is lost
+session_timeout = 3600
+
+# Duration (in seconds) of the user session expiry
+user_session_timeout = 1296000  # 15 days
+
+# Enable third parties caching (e.g., LangChain cache)
+cache = false
+
+# Whether to persist user environment variables (API keys) to the database
+persist_user_env = false
+
+# Whether to mask user environment variables (API keys) in the UI with password type
+mask_user_env = false
+
+# Authorized origins
+allow_origins = ["*"]
+
+[features]
+# Process and display HTML in messages.
+unsafe_allow_html = false
+
+# Process and display mathematical expressions.
+latex = false
+
+# Autoscroll new user messages at the top of the window
+user_message_autoscroll = true
+
+# Autoscroll new assistant messages
+assistant_message_autoscroll = true
+
+# Automatically tag threads with the current chat profile
+auto_tag_thread = true
+
+# Allow users to edit their own messages
+edit_message = true
+
+# Allow users to share threads
+allow_thread_sharing = false
+
+[features.slack]
+reaction_on_message_received = false
+
+[features.spontaneous_file_upload]
+    enabled = true
+    accept = ["*/*"]
+    max_files = 20
+    max_size_mb = 500
+
+[features.audio]
+    enabled = false
+    sample_rate = 24000
+
+[features.mcp]
+    enabled = false
+
+[features.mcp.sse]
+    enabled = true
+
+[features.mcp.streamable-http]
+    enabled = true
+
+[features.mcp.stdio]
+    enabled = true
+    allowed_executables = [ "npx", "uvx" ]
+
+[UI]
+# Assistant name
+name = "מכבי שירותי בריאות - DAPR MCP Couchbase Agent"
+
+# Chain of Thought (CoT) display mode.
+cot = "full"
+
+# Custom CSS file - must be BEFORE [UI.theme] sections
+custom_css = "/public/style.css"
+
+# The style of alert boxes.
+alert_style = "classic"
+
+# Load assistant logo
+logo_file_url = "/public/logo_light.png"
+
+default_avatar_file_url = ""
+
+# --- Maccabi Theme Colors ---
+[UI.theme]
+primary_color = "#0d47a1"
+
+[UI.theme.light]
+# Light blue background for light mode
+background = "#e3f2fd"
+paper = "#ffffff"
+
+[UI.theme.dark]
+# Dark blue background for dark mode
+background = "#0d1b2a"
+paper = "#1b263b"
+
+[meta]
+generated_by = "2.9.4"

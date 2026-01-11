@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap');
+
+/* Maccabi Healthcare Theme - Custom CSS */
+
+/* Apply Heebo font globally */
+* {
+    font-family: 'Heebo', sans-serif !important;
+}
+
+/* ========================================
+   BACKGROUND IMAGES FOR LIGHT/DARK MODE
+   Chainlit uses html.dark class for dark mode
+   ======================================== */
+
+/* Light mode background (default) */
+body {
+    background-image: url('/public/maccabiBKGbright.jpg') !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+}
+
+/* Dark mode background - using html.dark selector */
+html.dark body {
+    background-image: url('/public/maccabiBKGblue.jpg') !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-attachment: fixed !important;
+    background-repeat: no-repeat !important;
+}
+
+/* Make main content area slightly transparent to show background */
+main,
+[class*="main"],
+#root>div {
+    background-color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.dark main,
+html.dark [class*="main"],
+html.dark #root>div {
+    background-color: rgba(13, 27, 42, 0.9) !important;
+}
+
+/* ========================================
+   COLORS AND BRANDING
+   ======================================== */
+
+/* Maccabi blue for headings - light mode */
+h1,
+h2,
+h3 {
+    color: #0d47a1 !important;
+}
+
+/* Headings - dark mode */
+html.dark h1,
+html.dark h2,
+html.dark h3 {
+    color: #90caf9 !important;
+}
+
+/* Send button */
+#chat-submit {
+    background-color: #0d47a1 !important;
+    color: white !important;
+}
+
+#chat-submit:hover {
+    background-color: #1565c0 !important;
+}
+
+/* New chat button */
+#new-chat-button {
+    background-color: #0d47a1 !important;
+    color: white !important;
+}
+
+/* Chat input styling - light mode */
+#chat-input {
+    border-color: #0d47a1 !important;
+    background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Chat input - dark mode */
+html.dark #chat-input {
+    background-color: rgba(27, 38, 59, 0.95) !important;
+    border-color: #90caf9 !important;
+    color: white !important;
+}
+
+#chat-input:focus {
+    border-color: #d625a1 !important;
+    box-shadow: 0 0 0 2px rgba(214, 37, 161, 0.2) !important;
+}
+
+/* User message bubble */
+.cl-user-message,
+[class*="user-message"] {
+    background-color: #0d47a1 !important;
+    color: white !important;
+}
+
+/* Assistant message bubble - light mode */
+.cl-assistant-message,
+[class*="assistant-message"] {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Assistant message - dark mode */
+html.dark .cl-assistant-message,
+html.dark [class*="assistant-message"] {
+    background-color: rgba(27, 38, 59, 0.95) !important;
+    color: white !important;
+}
+
+/* Links - light mode */
+a {
+    color: #0d47a1 !important;
+}
+
+a:hover {
+    color: #d625a1 !important;
+}
+
+/* Links - dark mode */
+html.dark a {
+    color: #90caf9 !important;
+}
+
+html.dark a:hover {
+    color: #f48fb1 !important;
+}
+
+/* Sidebar - light mode */
+aside,
+[class*="sidebar"] {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Sidebar - dark mode */
+html.dark aside,
+html.dark [class*="sidebar"] {
+    background-color: rgba(13, 27, 42, 0.95) !important;
+}

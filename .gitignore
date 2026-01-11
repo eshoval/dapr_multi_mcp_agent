@@ -32,8 +32,7 @@ ENV/
 # Dapr
 .dapr/
 
-# Chainlit
-.chainlit/
+# Chainlit runtime files
 .files/
 
 # IDE
