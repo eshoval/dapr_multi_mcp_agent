@@ -1,6 +1,6 @@
 """
-Dapr MCP-Couchbase AI Agent POC
-A natural language chatbot using Dapr Agents + Chainlit that queries Couchbase via MCP.
+Dapr MCP AI Agent POC
+A natural language chatbot using Dapr Agents + Chainlit that queries multiple DBs via MCP.
 """
 
 import os
@@ -13,92 +13,110 @@ from dapr_agents import Agent
 from dapr_agents.tool.mcp.client import MCPClient
 from dapr_agents.llm.dapr import DaprChatClient
 
-# Load environment variables
 load_dotenv()
 
-# Configuration from .env
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000/sse")
+# MCP Server URLs
+CB_MCP_SERVER_URL = os.getenv("CB_MCP_SERVER_URL", "http://localhost:8000/sse")
+PG_MCP_SERVER_URL = os.getenv("PG_MCP_SERVER_URL", "http://localhost:8003/sse")
 CB_BUCKET_NAME = os.getenv("CB_BUCKET_NAME", "travel-sample")
 
 # Global state
 agent: Optional[Agent] = None
-mcp_client: Optional[MCPClient] = None
+cb_mcp_client: Optional[MCPClient] = None
+pg_mcp_client: Optional[MCPClient] = None
 
 
 def load_system_prompt() -> str:
-    """Load system prompt from prompts directory, create if missing."""
-    prompts_dir = Path(__file__).parent / "prompts"
-    prompt_file = prompts_dir / "system_prompt.txt"
-    return prompt_file.read_text(encoding="utf-8") 
+    """Load system prompt from prompts directory."""
+    prompt_file = Path(__file__).parent / "prompts" / "system_prompt.txt"
+    return prompt_file.read_text(encoding="utf-8")
 
-async def connect_mcp() -> tuple[MCPClient, list]:
-    """Connect to MCP server and retrieve available tools."""
-    client = MCPClient(persistent_connections=True)
-    await client.connect_sse(
-        server_name="couchbase",
-        url=MCP_SERVER_URL,
+
+async def init_agent():
+    """Initialize or reset the agent with MCP connections."""
+    global agent, cb_mcp_client, pg_mcp_client
+    
+    # Cleanup existing connections
+    for client in [cb_mcp_client, pg_mcp_client]:
+        if client:
+            try:
+                await client.close()
+            except RuntimeError:
+                pass
+    cb_mcp_client = None
+    pg_mcp_client = None
+    agent = None
+    
+    # Connect to Couchbase MCP
+    cb_mcp_client = MCPClient(persistent_connections=True)
+    await cb_mcp_client.connect_sse(server_name="couchbase", url=CB_MCP_SERVER_URL)
+    
+    # Connect to PostgreSQL MCP 
+    pg_mcp_client = MCPClient(persistent_connections=True)
+    await pg_mcp_client.connect_sse(server_name="postgres", url=PG_MCP_SERVER_URL)
+    
+    agent = Agent(
+        name="DBAgent",
+        role="Database Expert",
+        instructions=[load_system_prompt()],
+        llm=DaprChatClient(
+            component_name=os.getenv("DAPR_LLM_COMPONENT_DEFAULT", "openai"),
+            provider=os.getenv("DAPR_LLM_PROVIDER_DEFAULT", "openai"),
+            timeout=180
+        ),
+        tools=cb_mcp_client.get_all_tools() + pg_mcp_client.get_all_tools()
     )
-    tools = client.get_all_tools()
-    return client, tools
 
 
 @cl.on_chat_start
 async def on_chat_start():
-    """Initialize agent and MCP connection when chat starts."""
-    global agent, mcp_client
-    
-    # Load system prompt
-    system_prompt = load_system_prompt()
-    
-    # Connect to MCP server and get tools
+    """Initialize agent when chat starts."""
     try:
-        mcp_client, tools = await connect_mcp()
+        await init_agent()
+        pg_tools_count = len(pg_mcp_client.get_all_tools())
+        cb_tools_count = len(cb_mcp_client.get_all_tools())
+        await cl.Message(
+            content=f"Connected to DB MCP server. Ready to query the '{CB_BUCKET_NAME}' bucket. Couchbase MCP loaded ({cb_tools_count} tools). PostgreSQL MCP loaded ({pg_tools_count} tools). Ask me anything!",
+            actions=[cl.Action(name="reset_agent", payload={}, label="🔄 Reset Agent")]
+        ).send()
     except Exception as e:
-        await cl.Message(content=f"Failed to connect to MCP server: {e}").send()
-        return
-    component_name = os.getenv("DAPR_LLM_COMPONENT_DEFAULT", "openai")
-    provider = os.getenv("DAPR_LLM_PROVIDER_DEFAULT", "openai")
-    
-    # Create Dapr Agent with MCP tools and conversation memory
-    agent = Agent(
-        name="CouchbaseAgent",
-        role="Database Expert",
-        instructions=[system_prompt],
-        llm=DaprChatClient(component_name=component_name, provider=provider, timeout=180),
-        tools=tools,        
-    )    
-    await cl.Message(
-        content=f"Connected to Couchbase MCP server. Ready to query the '{CB_BUCKET_NAME}' bucket. Ask me anything!"
-    ).send()
+        await cl.Message(content=f"Failed to connect to MCP servers: {e}").send()
 
 
 @cl.on_chat_end
 async def on_chat_end():
-    """Cleanup MCP connection when chat ends."""
-    global mcp_client
-    if mcp_client:
-        try:
-            await mcp_client.close()
-        except RuntimeError:
-            pass  # Best-effort cleanup
-        finally:
-            mcp_client = None
+    """Cleanup MCP connections when chat ends."""
+    global cb_mcp_client, pg_mcp_client
+    for client in [cb_mcp_client, pg_mcp_client]:
+        if client:
+            try:
+                await client.close()
+            except RuntimeError:
+                pass
+    cb_mcp_client = None
+    pg_mcp_client = None
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
     """Handle incoming user messages."""
-    global agent
-    
     if agent is None:
-        await cl.Message(
-            content="Agent is not ready. Please refresh the page to reconnect."
-        ).send()
+        await cl.Message(content="Agent not ready. Please refresh the page.").send()
         return
     
-    # Run the agent with user's question
     try:
         response = await agent.run(message.content)
         await cl.Message(content=response.content or "No response generated.").send()
     except Exception as e:
-        await cl.Message(content=f"Error processing request: {e}").send()
+        await cl.Message(content=f"Error: {e}").send()
+
+
+@cl.action_callback("reset_agent")
+async def on_reset_action(action: cl.Action):
+    """Handle Reset button click."""
+    await cl.Message(content="🔄 Resetting agent...").send()
+    try:
+        await init_agent()
+        await cl.Message(content=f"✅ Agent reset! Ready to query '{CB_BUCKET_NAME}'.").send()
+    except Exception as e:
+        await cl.Message(content=f"❌ Reset failed: {e}").send()
