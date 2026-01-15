@@ -1,0 +1,7 @@
+5. SQL++ EXECUTION & MCP PRECISION
+** Only when quering the couchbase **
+To prevent "Keyspace not found" errors and ensure compatibility with the Couchbase MCP server, follow these syntax rules:
+Tool Arguments: When calling CouchbaseRunSqlPlusPlusQuery, always populate the bucket_name and scope_name parameters explicitly.
+Query String Syntax: Inside the SQL++ query string, reference the collection by its short name only (e.g., FROM airline instead of FROM inventory.airline). The MCP tool handles the context routing automatically.
+Limit Clauses: Always include a LIMIT clause to prevent overwhelming output.
+Logic Explanation: Provide a clear explanation of the logic behind the query, including index usage or join strategies if applicable.

@@ -15,9 +15,11 @@ from dapr_agents.llm.dapr import DaprChatClient
 
 load_dotenv()
 
-# MCP Server URLs
+# MCP Server Configuration
 CB_MCP_SERVER_URL = os.getenv("CB_MCP_SERVER_URL", "http://localhost:8000/sse")
 PG_MCP_SERVER_URL = os.getenv("PG_MCP_SERVER_URL", "http://localhost:8003/sse")
+CB_MCP_ACTIVE = os.getenv("CB_MCP_ACTIVE", "true").lower() == "true"
+PG_MCP_ACTIVE = os.getenv("PG_MCP_ACTIVE", "true").lower() == "true"
 CB_BUCKET_NAME = os.getenv("CB_BUCKET_NAME", "travel-sample")
 
 # Global state
@@ -27,9 +29,19 @@ pg_mcp_client: Optional[MCPClient] = None
 
 
 def load_system_prompt() -> str:
-    """Load system prompt from prompts directory."""
-    prompt_file = Path(__file__).parent / "prompts" / "system_prompt.txt"
-    return prompt_file.read_text(encoding="utf-8")
+    """Load system prompt, adding DB-specific prompts if active."""
+    prompts_dir = Path(__file__).parent / "prompts"
+    
+    # Base system prompt
+    prompt = (prompts_dir / "system_prompt.txt").read_text(encoding="utf-8")
+    
+    # Add Couchbase-specific prompt if active
+    if CB_MCP_ACTIVE:
+        cb_prompt_file = prompts_dir / "couchbase_prompt.txt"
+        if cb_prompt_file.exists():
+            prompt += "\n\n" + cb_prompt_file.read_text(encoding="utf-8")
+    
+    return prompt
 
 
 async def init_agent():
@@ -47,13 +59,26 @@ async def init_agent():
     pg_mcp_client = None
     agent = None
     
-    # Connect to Couchbase MCP
-    cb_mcp_client = MCPClient(persistent_connections=True)
-    await cb_mcp_client.connect_sse(server_name="couchbase", url=CB_MCP_SERVER_URL)
+    # Connect to Couchbase MCP if active
+    if CB_MCP_ACTIVE:
+        cb_mcp_client = MCPClient(persistent_connections=True)
+        await cb_mcp_client.connect_sse(server_name="couchbase", url=CB_MCP_SERVER_URL)
     
-    # Connect to PostgreSQL MCP 
-    pg_mcp_client = MCPClient(persistent_connections=True)
-    await pg_mcp_client.connect_sse(server_name="postgres", url=PG_MCP_SERVER_URL)
+    # Connect to PostgreSQL MCP if active
+    if PG_MCP_ACTIVE:
+        pg_mcp_client = MCPClient(persistent_connections=True)
+        await pg_mcp_client.connect_sse(server_name="postgres", url=PG_MCP_SERVER_URL)
+    
+    # Check if at least one DB is available
+    if not CB_MCP_ACTIVE and not PG_MCP_ACTIVE:
+        raise RuntimeError("No DB available - both CB_MCP_ACTIVE and PG_MCP_ACTIVE are false")
+    
+    # Collect tools from active MCP clients
+    all_tools = []
+    if cb_mcp_client:
+        all_tools.extend(cb_mcp_client.get_all_tools())
+    if pg_mcp_client:
+        all_tools.extend(pg_mcp_client.get_all_tools())
     
     agent = Agent(
         name="DBAgent",
@@ -61,10 +86,10 @@ async def init_agent():
         instructions=[load_system_prompt()],
         llm=DaprChatClient(
             component_name=os.getenv("DAPR_LLM_COMPONENT_DEFAULT", "openai"),
-            provider=os.getenv("DAPR_LLM_PROVIDER_DEFAULT", "openai"),
+            provider=os.getenv("DAPR_LLM_PROVIDER", "openai"),
             timeout=180
         ),
-        tools=cb_mcp_client.get_all_tools() + pg_mcp_client.get_all_tools()
+        tools=all_tools
     )
 
 
@@ -73,11 +98,23 @@ async def on_chat_start():
     """Initialize agent when chat starts."""
     try:
         await init_agent()
-        pg_tools_count = len(pg_mcp_client.get_all_tools())
-        cb_tools_count = len(cb_mcp_client.get_all_tools())
+        
+        # Build status message based on active DBs
+        status_parts = []
+        if cb_mcp_client:
+            cb_tools_count = len(cb_mcp_client.get_all_tools())
+            status_parts.append(f"Couchbase MCP ({cb_tools_count} tools)")
+        if pg_mcp_client:
+            pg_tools_count = len(pg_mcp_client.get_all_tools())
+            status_parts.append(f"PostgreSQL MCP ({pg_tools_count} tools)")
+        
         await cl.Message(
-            content=f"Connected to DB MCP server. Ready to query the '{CB_BUCKET_NAME}' bucket. Couchbase MCP loaded ({cb_tools_count} tools). PostgreSQL MCP loaded ({pg_tools_count} tools). Ask me anything!",
-            actions=[cl.Action(name="reset_agent", payload={}, label="🔄 Reset Agent")]
+            content=f"Connected to: {', '.join(status_parts)}. Ask me anything!",
+            actions=[
+                cl.Action(name="reset_agent", payload={}, label="🔄 Reset Agent"),
+                cl.Action(name="reload_env", payload={}, label="📥 Reload Env"),
+                cl.Action(name="exit_app", payload={}, label="🚪 Exit App")
+            ]
         ).send()
     except Exception as e:
         await cl.Message(content=f"Failed to connect to MCP servers: {e}").send()
@@ -120,3 +157,41 @@ async def on_reset_action(action: cl.Action):
         await cl.Message(content=f"✅ Agent reset! Ready to query '{CB_BUCKET_NAME}'.").send()
     except Exception as e:
         await cl.Message(content=f"❌ Reset failed: {e}").send()
+
+
+@cl.action_callback("reload_env")
+async def on_reload_env_action(action: cl.Action):
+    """Handle Reload Env button click - reload .env and reinitialize agent."""
+    global CB_MCP_SERVER_URL, PG_MCP_SERVER_URL, CB_MCP_ACTIVE, PG_MCP_ACTIVE, CB_BUCKET_NAME
+    
+    await cl.Message(content="📥 Reloading environment...").send()
+    
+    try:
+        # Reload .env file (override=True to update existing values)
+        load_dotenv(override=True)
+        
+        # Update global config variables
+        CB_MCP_SERVER_URL = os.getenv("CB_MCP_SERVER_URL", "http://localhost:8000/sse")
+        PG_MCP_SERVER_URL = os.getenv("PG_MCP_SERVER_URL", "http://localhost:8003/sse")
+        CB_MCP_ACTIVE = os.getenv("CB_MCP_ACTIVE", "true").lower() == "true"
+        PG_MCP_ACTIVE = os.getenv("PG_MCP_ACTIVE", "true").lower() == "true"
+        CB_BUCKET_NAME = os.getenv("CB_BUCKET_NAME", "travel-sample")
+        
+        # Reinitialize agent with new config
+        await init_agent()
+        
+        await cl.Message(content=f"✅ Environment reloaded! CB_ACTIVE={CB_MCP_ACTIVE}, PG_ACTIVE={PG_MCP_ACTIVE}").send()
+    except Exception as e:
+        await cl.Message(content=f"❌ Reload failed: {e}").send()
+
+
+@cl.action_callback("exit_app")
+async def on_exit_action(action: cl.Action):
+    """Handle Exit button click - shutdown the app."""
+    import os as _os
+    
+    await cl.Message(content="🚪 Shutting down application...").send()
+    
+    # Use os._exit() for immediate termination
+    # MCP cleanup is skipped as it fails across async task contexts
+    _os._exit(0)

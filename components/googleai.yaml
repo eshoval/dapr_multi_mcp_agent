@@ -1,0 +1,15 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: googleai
+spec:
+  type: conversation.googleai
+  metadata:
+  - name: key
+    secretKeyRef:
+      name: gemini-googleai-key
+      key: gemini-googleai-key
+  - name: cacheTTL
+    value: 10m
+auth:
+  secretStore: localsecretstore
